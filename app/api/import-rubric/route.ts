@@ -1,55 +1,67 @@
 import { NextResponse } from 'next/server'
+import OpenAI from 'openai'
 import { RubricItem } from '@/lib/types'
 
+
+
 export async function POST(req: Request) {
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   try {
-    const { image } = await req.json()
+    const { image } = await req.json() as { image: string }
 
-    // Mock: Always return 3 sample rubric items
-    const rubric: RubricItem[] = [
-      {
-        id: (Date.now() + 0).toString(),
-        name: "핵심 개념의 정확성",
-        levels: [
-          { score: 5, description: "성취기준과 관련된 핵심 개념을 오개념 없이 정확하게 기술함" },
-          { score: 3, description: "기본적인 개념은 맞으나 일부 서술이 모호함" },
-          { score: 1, description: "핵심 개념을 잘못 이해하거나 중요 내용을 누락함" }
-        ]
-      },
-      {
-        id: (Date.now() + 1).toString(),
-        name: "근거 제시의 타당성",
-        levels: [
-          { score: 5, description: "자료를 바탕으로 객관적이고 구체적인 근거를 3가지 이상 제시함" },
-          { score: 3, description: "적절한 근거를 제시하였으나 구체성이 다소 부족함" },
-          { score: 1, description: "근거가 부적절하거나 주관적인 의견에만 의존함" }
-        ]
-      },
-      {
-        id: (Date.now() + 2).toString(),
-        name: "글쓰기 형식의 적절성",
-        levels: [
-          { score: 5, description: "문장 간 연결이 자연스럽고 원고지 사용법을 완벽히 준수함" },
-          { score: 3, description: "글의 구조는 갖추었으나 문장이 다소 매끄럽지 못함" },
-          { score: 1, description: "글의 형식이 어긋나거나 맞춤법 오류가 다수 발견됨" }
-        ]
-      }
+    const systemPrompt = `이미지에서 채점기준 표를 추출하세요.
+반드시 아래 JSON 형식으로만 응답하세요:
+[
+  {
+    "name": "항목명",
+    "levels": [
+      { "score": 5, "description": "수준 기술" },
+      { "score": 3, "description": "수준 기술" },
+      { "score": 1, "description": "수준 기술" }
     ]
+  }
+]
+- 최대 5개 항목까지만 반환
+- 배점은 숫자로, 높은 순서로 정렬
+- 표에서 읽은 내용을 그대로 사용`
 
-    // TODO: Claude API vision 연동
-    // import Anthropic from '@anthropic-ai/sdk'
-    // const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    // const response = await client.messages.create({
-    //   model: 'claude-3-5-sonnet-20240620',
-    //   max_tokens: 2048,
-    //   messages: [{
-    //     role: 'user',
-    //     content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } }, { type: 'text', text: 'Extract rubric' }]
-    //   }]
-    // })
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:image/jpeg;base64,${image}`,
+                detail: 'high',
+              },
+            },
+            { type: 'text', text: systemPrompt },
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+    })
+
+    const content = response.choices[0].message.content || '[]'
+    const parsed = JSON.parse(content)
+    const rawItems = Array.isArray(parsed) ? parsed : parsed.rubric || parsed.items || []
+
+    const rubric: RubricItem[] = rawItems.slice(0, 5).map((item: { name: string; levels: { score: number; description: string }[] }, i: number) => ({
+      id: `${Date.now()}-${i}`,
+      name: item.name || '',
+      levels: (item.levels || []).map((l: { score: number; description: string }) => ({
+        score: Number(l.score),
+        description: l.description || '',
+      })),
+    }))
 
     return NextResponse.json(rubric)
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to import rubric' }, { status: 500 })
+    console.error('import-rubric error:', error)
+    return NextResponse.json({ error: '이미지 인식에 실패했습니다.' }, { status: 500 })
   }
 }
