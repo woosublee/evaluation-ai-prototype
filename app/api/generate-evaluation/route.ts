@@ -1,34 +1,41 @@
 import { NextResponse } from 'next/server'
 import { AchievementStandard, RubricItem, EvaluationGuide } from '@/lib/types'
 
-export async function POST(request: Request) {
-  const body = await request.json()
-  const { standard, rubric, prompt }: { standard: AchievementStandard; rubric: RubricItem[]; prompt?: string } = body
+export async function POST(req: Request) {
+  try {
+    const { standard, rubric, prompt } = await req.json() as { standard: AchievementStandard, rubric: RubricItem[], prompt?: string }
 
-  // Mock data for evaluation guide
-  const guide: EvaluationGuide = {
-    description: `본 평가는 성취기준 [${standard.code}] "${standard.content}"을(를) 달성하기 위해 설계되었습니다. 학생들은 제시된 조건에 따라 ${rubric.map(r => r.name).join(', ')}을(를) 중심으로 평가를 받게 됩니다.`,
-    conditions: `1. 정해진 시간(40분) 내에 작성을 완료해야 합니다.\n2. 자신의 경험을 바탕으로 진솔하게 서술해야 합니다.\n3. 분량은 A4 용지 1매 내외(약 600자)로 제한합니다.\n4. 맞춤법 및 띄어쓰기 규정을 준수해야 합니다.`
+    let guide: EvaluationGuide = {
+      description: '',
+      conditions: ''
+    }
+
+    if (standard.code === '[4국03-04]') {
+      guide = {
+        description: '고마운 사람에게 마음을 전하는 편지를 써 보세요. 읽는 사람이 누구인지 생각하면서, 자신의 마음이 잘 전해지도록 글을 써 봅시다. (15점)',
+        conditions: `1. 마음 표현 (배점 5점)\n- 고마운 마음이 무엇인지 구체적으로 써 보세요.\n- 왜 고마운지 까닭을 함께 써 보세요.\n2. 읽는 이 고려 (배점 5점)\n- 편지를 받는 사람이 누구인지 알 수 있게 써 보세요.\n3. 글의 구조 (배점 5점)\n- 인삿말과 끝인사를 포함하여 자연스러운 흐름으로 써 보세요.`
+      }
+    } else {
+      guide = {
+        description: `${standard.content}와 관련하여 본인의 생각을 논술해 보세요.`,
+        conditions: `1. 내용의 타당성 (배점 5점)\n- 근거를 명확히 제시하세요.\n2. 논리적 구성 (배점 5점)\n- 서론, 본론, 결론의 형식을 갖추세요.\n3. 언어 표현의 적절성 (배점 5점)\n- 맞춤법과 어법을 준수하세요.`
+      }
+    }
+
+    // TODO: Claude API 연동
+    // import Anthropic from '@anthropic-ai/sdk'
+    // const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    // const response = await client.messages.create({
+    //   model: 'claude-3-5-sonnet-20240620',
+    //   max_tokens: 2048,
+    //   messages: [{
+    //     role: 'user',
+    //     content: `성취기준: ${standard.content}. 채점기준: ${JSON.stringify(rubric)}. 프롬프트: ${prompt || '없음'}`
+    //   }]
+    // })
+
+    return NextResponse.json(guide)
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to generate evaluation' }, { status: 500 })
   }
-
-  // Claude API 연동 예시 (주석)
-  /*
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.CLAUDE_API_KEY!,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20240620',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: `Generate an evaluation guide for: ${standard.content} with rubric: ${JSON.stringify(rubric)}. ${prompt || ''}` }]
-    })
-  })
-  const result = await response.json()
-  return NextResponse.json(JSON.parse(result.content[0].text))
-  */
-
-  return NextResponse.json(guide)
 }

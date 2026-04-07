@@ -1,74 +1,78 @@
-import { RubricItem, RubricLevel } from './types'
+import { RubricItem } from './types'
 
 export function parseRubricText(text: string): RubricItem[] | null {
   if (!text.trim()) return null
 
   const items: RubricItem[] = []
+  const lines = text.split('\n').map(line => line.trim())
 
-  // Try Pattern B (Tab separated) first as it's more specific
-  if (text.includes('\t')) {
-    const lines = text.split('\n').filter(l => l.trim().length > 0)
+  // Check if it's Tab-separated (Pattern B)
+  const isTabSeparated = lines.some(line => line.includes('\t'))
+
+  if (isTabSeparated) {
+    let currentItemName = ''
     let currentItem: RubricItem | null = null
 
     for (const line of lines) {
+      if (!line) continue
       const parts = line.split('\t')
       if (parts.length >= 2) {
-        const itemName = parts[0].trim()
-        const scoreStr = parts[1].trim()
-        const description = parts[2]?.trim() || ''
-        const score = parseInt(scoreStr, 10)
+        const namePart = parts[0].trim()
+        const scorePart = parts[1].trim()
+        const descPart = parts[2]?.trim() || ''
 
+        const score = parseInt(scorePart)
         if (!isNaN(score)) {
-          if (itemName) {
-            if (items.length >= 5) break
+          if (namePart) {
+            currentItemName = namePart
             currentItem = {
-              id: Math.random().toString(36).substring(7),
-              name: itemName,
+              id: (Date.now() + items.length).toString(),
+              name: currentItemName,
               levels: []
             }
             items.push(currentItem)
           }
 
           if (currentItem) {
-            currentItem.levels.push({ score, description })
+            currentItem.levels.push({ score, description: descPart })
           }
         }
       }
     }
-    return items.length > 0 ? items : null
+  } else {
+    // Newline-based (Pattern A)
+    // Basic heuristic: Number only lines are scores, empty lines are separators
+    let currentItem: RubricItem | null = null
+    let tempName = ''
+
+    const blocks = text.split(/\n\s*\n/) // Split by empty lines
+    for (const block of blocks) {
+      const blockLines = block.split('\n').map(l => l.trim()).filter(l => l)
+      if (blockLines.length < 2) continue
+
+      const name = blockLines[0]
+      const levels: { score: number; description: string }[] = []
+
+      for (let i = 1; i < blockLines.length; i++) {
+        const line = blockLines[i]
+        const scoreMatch = line.match(/^(\d+)/)
+        if (scoreMatch) {
+          const score = parseInt(scoreMatch[1])
+          const description = line.replace(/^\d+[\s.]*/, '').trim()
+          levels.push({ score, description })
+        }
+      }
+
+      if (levels.length > 0) {
+        items.push({
+          id: (Date.now() + items.length).toString(),
+          name,
+          levels
+        })
+      }
+    }
   }
 
-  // Pattern A (Line-break based)
-  const lines = text.split('\n').map(l => l.trim())
-  let currentItem: RubricItem | null = null
-  let lastScore: number | null = null
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (line === '') {
-      currentItem = null
-      continue
-    }
-
-    const score = parseInt(line, 10)
-    if (!isNaN(score) && line === score.toString()) {
-      // It's a score line
-      if (currentItem && i + 1 < lines.length) {
-        const description = lines[i + 1]
-        currentItem.levels.push({ score, description })
-        i++ // Skip description line
-      }
-    } else {
-      // It's a category name line
-      if (items.length >= 5) continue
-      currentItem = {
-        id: Math.random().toString(36).substring(7),
-        name: line,
-        levels: []
-      }
-      items.push(currentItem)
-    }
-  }
-
-  return items.length > 0 ? items : null
+  if (items.length === 0) return null
+  return items.slice(0, 5)
 }
