@@ -11,16 +11,18 @@ export async function POST(req: Request) {
 
     const systemPrompt = `이미지에서 채점기준 표를 추출하세요.
 반드시 아래 JSON 형식으로만 응답하세요:
-[
-  {
-    "name": "항목명",
-    "levels": [
-      { "score": 5, "description": "수준 기술" },
-      { "score": 3, "description": "수준 기술" },
-      { "score": 1, "description": "수준 기술" }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "name": "항목명",
+      "levels": [
+        { "score": 5, "description": "수준 기술" },
+        { "score": 3, "description": "수준 기술" },
+        { "score": 1, "description": "수준 기술" }
+      ]
+    }
+  ]
+}
 - 최대 5개 항목까지만 반환
 - 배점은 숫자로, 높은 순서로 정렬
 - 표에서 읽은 내용을 그대로 사용`
@@ -48,7 +50,7 @@ export async function POST(req: Request) {
 
     const content = response.choices[0].message.content || '[]'
     const parsed = JSON.parse(content)
-    const rawItems = Array.isArray(parsed) ? parsed : parsed.rubric || parsed.items || []
+    const rawItems = parsed.items || parsed.rubric || (Array.isArray(parsed) ? parsed : [])
 
     const rubric: RubricItem[] = rawItems.slice(0, 5).map((item: { name: string; levels: { score: number; description: string }[] }, i: number) => ({
       id: `${Date.now()}-${i}`,

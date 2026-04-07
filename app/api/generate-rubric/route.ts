@@ -31,16 +31,18 @@ export async function POST(req: Request) {
 - 하 수준: 미달성 또는 나열·형식적 수준
 
 반드시 아래 JSON 형식으로만 응답하세요:
-[
-  {
-    "name": "채점기준 항목명",
-    "levels": [
-      { "score": 5, "description": "상 수준 기술" },
-      { "score": 3, "description": "중 수준 기술" },
-      { "score": 1, "description": "하 수준 기술" }
-    ]
-  }
-]`
+{
+  "items": [
+    {
+      "name": "채점기준 항목명",
+      "levels": [
+        { "score": 5, "description": "상 수준 기술" },
+        { "score": 3, "description": "중 수준 기술" },
+        { "score": 1, "description": "하 수준 기술" }
+      ]
+    }
+  ]
+}`
 
     const userPrompt = `학교급: ${SCHOOL_LEVEL_KO[standard.schoolLevel]}
 과목: ${standard.subject}
@@ -61,7 +63,7 @@ ${prompt ? `\n교사 추가 요청: ${prompt}` : ''}`
 
     const content = response.choices[0].message.content || '[]'
     const parsed = JSON.parse(content)
-    const rawItems = Array.isArray(parsed) ? parsed : parsed.rubric || parsed.items || []
+    const rawItems = parsed.items || parsed.rubric || (Array.isArray(parsed) ? parsed : [])
 
     const rubric: RubricItem[] = rawItems.slice(0, 5).map((item: { name: string; levels: { score: number; description: string }[] }, i: number) => ({
       id: `${Date.now()}-${i}`,

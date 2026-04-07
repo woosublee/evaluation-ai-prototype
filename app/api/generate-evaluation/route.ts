@@ -37,10 +37,10 @@ export async function POST(req: Request) {
 - 평가 조건: 채점기준의 각 항목을 학생 행동 지시문으로 변환. "항목명 (배점 N점)\n- 지시사항" 형식.
 - 글자수 제한: 평가 설명 200자 이내, 평가 조건 350자 이내
 
-반드시 아래 JSON 형식으로만 응답하세요:
+반드시 아래 JSON 형식으로만 응답하세요. 다른 키는 추가하지 마세요:
 {
-  "description": "평가 설명 텍스트",
-  "conditions": "평가 조건 텍스트"
+  "description": "평가 설명 텍스트 (200자 이내)",
+  "conditions": "평가 조건 텍스트 (350자 이내)"
 }`
 
     const totalScore = rubric.reduce((sum, item) => sum + Math.max(...item.levels.map(l => l.score)), 0)
