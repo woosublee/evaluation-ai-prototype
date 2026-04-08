@@ -67,6 +67,7 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
         body: JSON.stringify({ standard, prompt: aiPrompt })
       })
       const data = await res.json()
+      if (!Array.isArray(data) || data.length === 0) throw new Error('Invalid response')
       setRubric(data)
       setShowAiPromptInput(false)
       setAiPrompt('')
@@ -98,6 +99,7 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
         body: JSON.stringify({ image: 'base64-mock' })
       })
       const data = await res.json()
+      if (!Array.isArray(data) || data.length === 0) throw new Error('Invalid response')
       setRubric(data)
       setShowImageDialog(false)
     } catch (e) {

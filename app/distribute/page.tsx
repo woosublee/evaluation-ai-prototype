@@ -43,7 +43,7 @@ export default function DistributePage() {
 
   const canProceed = useMemo(() => {
     const hasStandard = !!selectedStandardCode
-    const hasRubric = rubric.filter(item => item.name.trim()).length >= 3
+    const hasRubric = Array.isArray(rubric) && rubric.filter(item => item.name.trim()).length >= 3
     const hasEvalName = evalName.trim().length > 0 && evalName.length <= 40
     if (evalType === 'online') {
       return hasStandard && hasRubric && hasEvalName &&
