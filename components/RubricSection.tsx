@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { RubricItem, AchievementStandard } from '@/lib/types'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import {
@@ -39,6 +39,8 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
   const [showPasteDialog, setShowPasteDialog] = useState(false)
   const [showImageDialog, setShowImageDialog] = useState(false)
   const [pasteError, setPasteError] = useState('')
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const hasContent = rubric.some(item => item.name || item.levels.some(l => l.description))
 
@@ -66,6 +68,7 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ standard, prompt: aiPrompt })
       })
+      if (!res.ok) throw new Error(`Server error: ${res.status}`)
       const data = await res.json()
       if (!Array.isArray(data) || data.length === 0) throw new Error('Invalid response')
       setRubric(data)
@@ -80,7 +83,10 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
 
   const handlePasteImport = () => {
     setPasteError('')
+    console.log('[paste] raw:', JSON.stringify(pasteText))
+    console.log('[paste] hasTab:', pasteText.includes('\t'))
     const parsed = parseRubricText(pasteText)
+    console.log('[paste] parsed:', parsed)
     if (parsed) {
       setRubric(parsed)
       setShowPasteDialog(false)
@@ -91,16 +97,29 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
   }
 
   const handleImageImport = async () => {
+    if (!selectedImage) return
     setIsImporting(true)
     try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          // data:image/...;base64, 접두사 제거
+          resolve(result.split(',')[1])
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(selectedImage)
+      })
       const res = await fetch('/api/import-rubric', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: 'base64-mock' })
+        body: JSON.stringify({ image: base64 })
       })
+      if (!res.ok) throw new Error(`Server error: ${res.status}`)
       const data = await res.json()
       if (!Array.isArray(data) || data.length === 0) throw new Error('Invalid response')
       setRubric(data)
+      setSelectedImage(null)
       setShowImageDialog(false)
     } catch (e) {
       console.error(e)
@@ -186,7 +205,7 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <span>✦</span>
             }
-            AI로 채점기준 생성
+            AI로 생성
           </button>
           <button
             onClick={() => triggerAction('import')}
@@ -334,6 +353,18 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
             <textarea
               value={pasteText}
               onChange={e => { setPasteText(e.target.value); setPasteError('') }}
+              onKeyDown={e => {
+                if (e.key === 'Tab') {
+                  e.preventDefault()
+                  const el = e.currentTarget
+                  const start = el.selectionStart
+                  const end = el.selectionEnd
+                  const next = pasteText.substring(0, start) + '\t' + pasteText.substring(end)
+                  setPasteText(next)
+                  // 커서 위치 복원
+                  requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = start + 1 })
+                }
+              }}
               placeholder={`예시 (줄바꿈형):\n작품이해\n3\n정확하게 파악하고 구체적으로 서술함\n2\n대체로 파악하였으나 부분적으로 부족함\n1\n파악이 미흡함`}
               className="border border-[#DDDDDD] rounded-[4px] p-3 text-[14px] font-mono min-h-[250px] w-full focus:outline-none focus:border-[#9013FE] resize-none"
             />
@@ -352,14 +383,26 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
           <DialogHeader>
             <DialogTitle>이미지로 불러오기</DialogTitle>
           </DialogHeader>
-          <div className="py-8 flex flex-col items-center justify-center border-2 border-dashed border-[#DDDDDD] rounded-[8px] bg-[#F8F8F8] gap-3">
+          <div
+            className="py-8 flex flex-col items-center justify-center border-2 border-dashed border-[#DDDDDD] rounded-[8px] bg-[#F8F8F8] gap-3 cursor-pointer hover:bg-[#F0F0F0] transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
             <span className="text-[40px]">🖼</span>
-            <p className="text-[14px] text-[#808080]">채점기준 표가 포함된 이미지를 업로드하세요</p>
-            <input type="file" accept="image/*" className="text-[14px]" />
+            {selectedImage
+              ? <p className="text-[14px] text-[#9013FE] font-bold">{selectedImage.name}</p>
+              : <p className="text-[14px] text-[#808080]">채점기준 표가 포함된 이미지를 업로드하세요</p>
+            }
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => setSelectedImage(e.target.files?.[0] || null)}
+            />
           </div>
           <DialogFooter>
-            <button onClick={() => setShowImageDialog(false)} className="border border-[#DDDDDD] rounded-full px-5 py-2 text-[14px] font-bold text-[#2B2B2B] hover:bg-gray-50">취소</button>
-            <button onClick={handleImageImport} disabled={isImporting} className="bg-[#9013FE] text-white text-[14px] font-bold rounded-full px-5 py-2 hover:bg-[#7B0FD9] flex items-center gap-2 disabled:opacity-40">
+            <button onClick={() => { setShowImageDialog(false); setSelectedImage(null) }} className="border border-[#DDDDDD] rounded-full px-5 py-2 text-[14px] font-bold text-[#2B2B2B] hover:bg-gray-50">취소</button>
+            <button onClick={handleImageImport} disabled={isImporting || !selectedImage} className="bg-[#9013FE] text-white text-[14px] font-bold rounded-full px-5 py-2 hover:bg-[#7B0FD9] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
               {isImporting && <Loader2 className="h-4 w-4 animate-spin" />}
               인식하기
             </button>

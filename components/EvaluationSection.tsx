@@ -52,6 +52,7 @@ export function EvaluationSection({ standard, rubric, guide, setGuide, evalName,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ standard, rubric, prompt: aiPrompt })
       })
+      if (!res.ok) throw new Error(`Server error: ${res.status}`)
       const data = await res.json()
       setGuide(data)
       setShowAiPromptInput(false)
