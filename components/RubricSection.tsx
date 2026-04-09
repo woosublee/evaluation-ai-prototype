@@ -201,27 +201,27 @@ export function RubricSection({ standard, levelsReady, rubric, setRubric }: Rubr
     setRubric(rubric.filter((_, i) => i !== idx))
   }
 
-  // 배점 추가/삭제는 모든 항목에 동시 적용 (일관성 유지)
-  const addLevel = () => {
-    if (rubric[0]?.levels.length >= 5) return
-    const refLevels = rubric[0]?.levels || []
-    const gap = refLevels.length >= 2
-      ? refLevels[refLevels.length - 2].score - refLevels[refLevels.length - 1].score
+  // 배점 추가/삭제는 각 항목별 독립 동작
+  const addLevel = (itemIdx: number) => {
+    const item = rubric[itemIdx]
+    if (!item || item.levels.length >= 5) return
+    const levels = item.levels
+    const gap = levels.length >= 2
+      ? levels[levels.length - 2].score - levels[levels.length - 1].score
       : 1
-    const minScore = refLevels[refLevels.length - 1]?.score ?? 1
+    const minScore = levels[levels.length - 1]?.score ?? 1
     const newScore = Math.max(minScore - gap, 0)
-    setRubric(rubric.map(item => ({
-      ...item,
-      levels: [...item.levels, { score: newScore, description: '' }]
-    })))
+    const next = [...rubric]
+    next[itemIdx] = { ...item, levels: [...levels, { score: newScore, description: '' }] }
+    setRubric(next)
   }
 
-  const removeLevel = (levelIdx: number) => {
-    if (rubric[0]?.levels.length <= 3) return
-    setRubric(rubric.map(item => ({
-      ...item,
-      levels: item.levels.filter((_, i) => i !== levelIdx)
-    })))
+  const removeLevel = (itemIdx: number, levelIdx: number) => {
+    const item = rubric[itemIdx]
+    if (!item || item.levels.length <= 3) return
+    const next = [...rubric]
+    next[itemIdx] = { ...item, levels: item.levels.filter((_, i) => i !== levelIdx) }
+    setRubric(next)
   }
 
   return (
@@ -301,19 +301,13 @@ export function RubricSection({ standard, levelsReady, rubric, setRubric }: Rubr
               <div className="flex-1 flex flex-col">
                 {item.levels.map((level, levelIdx) => (
                   <div key={levelIdx} className={`flex items-stretch ${levelIdx < item.levels.length - 1 ? 'border-b border-[#DDDDDD]' : ''}`}>
-                    <div className="w-[54px] shrink-0 border-r border-[#DDDDDD] flex items-center justify-center p-2 group relative">
+                    <div className="w-[54px] shrink-0 border-r border-[#DDDDDD] flex items-center justify-center p-2">
                       <input
                         type="number"
                         value={level.score}
                         onChange={e => updateScore(itemIdx, levelIdx, Number(e.target.value))}
                         className="w-full text-[14px] font-bold text-[#2B2B2B] text-center bg-transparent border-none outline-none"
                       />
-                      {item.levels.length > 3 && levelIdx === item.levels.length - 1 && (
-                        <button
-                          onClick={() => removeLevel(levelIdx)}
-                          className="absolute -right-2 -top-2 w-4 h-4 bg-[#FF595F] text-white rounded-full text-[10px] hidden group-hover:flex items-center justify-center z-10"
-                        >×</button>
-                      )}
                     </div>
                     <div className="flex-1 p-2">
                       <textarea
@@ -324,6 +318,16 @@ export function RubricSection({ standard, levelsReady, rubric, setRubric }: Rubr
                         className="w-full text-[14px] text-[#2B2B2B] bg-transparent border-none outline-none resize-none leading-[1.43] placeholder:text-[#AAAAAA]"
                       />
                     </div>
+                    {item.levels.length >= 4 && (
+                      <div className="w-10 shrink-0 flex items-center justify-center border-l border-[#DDDDDD]">
+                        <button
+                          onClick={() => removeLevel(itemIdx, levelIdx)}
+                          className="text-[#AAAAAA] hover:text-[#FF595F] p-1"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -331,13 +335,14 @@ export function RubricSection({ standard, levelsReady, rubric, setRubric }: Rubr
           </div>
           {/* 배점 추가/삭제/AI채우기 */}
           <div className="flex items-center justify-between px-1">
-            <button
-              onClick={() => addLevel()}
-              disabled={item.levels.length >= 5}
-              className="flex items-center gap-1 text-[14px] font-bold text-[#2B2B2B] disabled:text-[#AAAAAA] disabled:cursor-not-allowed"
-            >
-              <Plus className="h-5 w-5" /> 배점 추가
-            </button>
+            {item.levels.length < 5 && (
+              <button
+                onClick={() => addLevel(itemIdx)}
+                className="flex items-center gap-1 text-[14px] font-bold text-[#2B2B2B]"
+              >
+                <Plus className="h-5 w-5" /> 배점 추가
+              </button>
+            )}
             <div className="flex items-center gap-3">
               {/* 빈 항목이고 다른 채워진 항목이 있을 때만 표시 */}
               {hasFilledItem && !item.name.trim() && !item.levels.some(l => l.description.trim()) && (
