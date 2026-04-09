@@ -47,7 +47,11 @@ export function RubricSection({ standard, levelsReady, rubric, setRubric }: Rubr
   const [generatingItemId, setGeneratingItemId] = useState<string | null>(null)
 
   const hasContent = rubric.some(item => item.name || item.levels.some(l => l.description))
-  const hasFilledItem = rubric.some(item => item.name.trim() && item.levels.some(l => l.description.trim()))
+  const hasFilledItem = rubric.some(item =>
+    item.name.trim() &&
+    item.levels.length >= 3 &&
+    item.levels.every(l => l.description.trim())
+  )
 
   const triggerAction = (action: 'generate' | 'import' | 'paste') => {
     if (hasContent) {
@@ -345,12 +349,23 @@ export function RubricSection({ standard, levelsReady, rubric, setRubric }: Rubr
                 </button>
               )}
               {rubric.length > 3 && (
-                <button
-                  onClick={() => removeItem(itemIdx)}
-                  className="flex items-center gap-1 text-[14px] font-bold text-[#808080] hover:text-[#FF595F]"
-                >
-                  <Trash2 className="h-5 w-5" /> 삭제
-                </button>
+                <>
+                  <button
+                    onClick={() => setRubric(rubric.map((r, i) => i === itemIdx
+                      ? { ...r, name: '', levels: r.levels.map(l => ({ ...l, description: '' })) }
+                      : r
+                    ))}
+                    className="flex items-center gap-1 text-[14px] font-bold text-[#808080] hover:text-[#2B2B2B]"
+                  >
+                    ◇ 전부 지우기
+                  </button>
+                  <button
+                    onClick={() => removeItem(itemIdx)}
+                    className="flex items-center gap-1 text-[14px] font-bold text-[#808080] hover:text-[#FF595F]"
+                  >
+                    <Trash2 className="h-4 w-4" /> 표 제거
+                  </button>
+                </>
               )}
             </div>
           </div>
