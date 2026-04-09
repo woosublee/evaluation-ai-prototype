@@ -222,7 +222,7 @@ export default function DistributePage() {
                     setSelectedStandardCode(code)
                     const found = SAMPLE_ACHIEVEMENT_STANDARDS.find(s => s.code === code)
                     if (found && found.levels.length > 0) {
-                      setDirectLevels(found.levels.map(l => ({ grade: l.grade, description: '' })))
+                      setDirectLevels(found.levels.map(l => ({ grade: l.grade, description: l.description })))
                     } else {
                       setDirectLevels([
                         { grade: 'A', description: '' },
