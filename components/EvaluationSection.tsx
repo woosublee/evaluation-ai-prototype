@@ -16,6 +16,7 @@ import {
 
 interface EvaluationSectionProps {
   standard: AchievementStandard | null
+  levelsReady: boolean
   rubric: RubricItem[]
   guide: EvaluationGuide
   setGuide: (guide: EvaluationGuide) => void
@@ -24,14 +25,19 @@ interface EvaluationSectionProps {
   evalType: 'online' | 'offline'
 }
 
-export function EvaluationSection({ standard, rubric, guide, setGuide, evalName, setEvalName, evalType }: EvaluationSectionProps) {
+export function EvaluationSection({ standard, levelsReady, rubric, guide, setGuide, evalName, setEvalName, evalType }: EvaluationSectionProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [referenceUrl, setReferenceUrl] = useState('')
   const [showAiPromptInput, setShowAiPromptInput] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
   const [showConfirmReplace, setShowConfirmReplace] = useState(false)
 
-  const isRubricFilled = rubric.some(item => item.name || item.levels.some(l => l.description))
+  const isRubricFilled = Array.isArray(rubric) &&
+    rubric.filter(item =>
+      item.name.trim() &&
+      item.levels.length >= 3 &&
+      item.levels.every(l => l.description.trim())
+    ).length >= 3
   const hasGuide = !!(guide.description || guide.conditions)
   const evalNameError = evalName.length > 40
 
@@ -125,7 +131,7 @@ export function EvaluationSection({ standard, rubric, guide, setGuide, evalName,
             ) : (
               <button
                 onClick={handleTriggerGenerate}
-                disabled={!isRubricFilled || !standard || isGenerating || showAiPromptInput}
+                disabled={!isRubricFilled || isGenerating || showAiPromptInput}
                 className="flex items-center gap-1.5 bg-[#9013FE] text-white text-[14px] font-bold rounded-full px-4 py-1.5 hover:bg-[#7B0FD9] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : '✦'}

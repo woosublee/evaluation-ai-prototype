@@ -24,11 +24,12 @@ import { parseRubricText } from '@/lib/rubric-parser'
 
 interface RubricSectionProps {
   standard: AchievementStandard | null
+  levelsReady: boolean
   rubric: RubricItem[]
   setRubric: (rubric: RubricItem[]) => void
 }
 
-export function RubricSection({ standard, rubric, setRubric }: RubricSectionProps) {
+export function RubricSection({ standard, levelsReady, rubric, setRubric }: RubricSectionProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [showConfirmReplace, setShowConfirmReplace] = useState(false)
@@ -41,8 +42,12 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
   const [pasteError, setPasteError] = useState('')
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [fillingItemId, setFillingItemId] = useState<string | null>(null)
+  const [fillPrompts, setFillPrompts] = useState<Record<string, string>>({})
+  const [generatingItemId, setGeneratingItemId] = useState<string | null>(null)
 
   const hasContent = rubric.some(item => item.name || item.levels.some(l => l.description))
+  const hasFilledItem = rubric.some(item => item.name.trim() && item.levels.some(l => l.description.trim()))
 
   const triggerAction = (action: 'generate' | 'import' | 'paste') => {
     if (hasContent) {
@@ -50,6 +55,33 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
       setShowConfirmReplace(true)
     } else {
       executeAction(action)
+    }
+  }
+
+  const handleFillItem = async (itemId: string) => {
+    const item = rubric.find(r => r.id === itemId)
+    if (!item) return
+    setGeneratingItemId(itemId)
+    try {
+      const res = await fetch('/api/generate-single-rubric', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          standard,
+          existingRubric: rubric.filter(r => r.id !== itemId && r.name.trim()),
+          itemName: item.name,
+          prompt: fillPrompts[itemId] || '',
+        }),
+      })
+      if (!res.ok) throw new Error(`Server error: ${res.status}`)
+      const data = await res.json()
+      setRubric(rubric.map(r => r.id === itemId ? { ...data, id: itemId } : r))
+      setFillingItemId(null)
+      setFillPrompts(prev => { const next = { ...prev }; delete next[itemId]; return next })
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setGeneratingItemId(null)
     }
   }
 
@@ -198,7 +230,7 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
         <div className="flex items-center gap-2">
           <button
             onClick={() => triggerAction('generate')}
-            disabled={!standard || isGenerating}
+            disabled={!levelsReady || isGenerating}
             className="flex items-center gap-2 bg-[#9013FE] text-white text-[14px] font-bold rounded-full px-4 py-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#7B0FD9] transition-colors"
           >
             {isGenerating
@@ -293,7 +325,7 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
               </div>
             </div>
           </div>
-          {/* 배점 추가/삭제 */}
+          {/* 배점 추가/삭제/AI채우기 */}
           <div className="flex items-center justify-between px-1">
             <button
               onClick={() => addLevel()}
@@ -302,15 +334,58 @@ export function RubricSection({ standard, rubric, setRubric }: RubricSectionProp
             >
               <Plus className="h-5 w-5" /> 배점 추가
             </button>
-            {rubric.length > 3 && (
-              <button
-                onClick={() => removeItem(itemIdx)}
-                className="flex items-center gap-1 text-[14px] font-bold text-[#808080] hover:text-[#FF595F]"
-              >
-                <Trash2 className="h-5 w-5" /> 삭제
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {/* 빈 항목이고 다른 채워진 항목이 있을 때만 표시 */}
+              {hasFilledItem && !item.name.trim() && !item.levels.some(l => l.description.trim()) && (
+                <button
+                  onClick={() => setFillingItemId(fillingItemId === item.id ? null : item.id)}
+                  className="flex items-center gap-1 text-[14px] font-bold text-[#9013FE]"
+                >
+                  ✦ AI로 채우기
+                </button>
+              )}
+              {rubric.length > 3 && (
+                <button
+                  onClick={() => removeItem(itemIdx)}
+                  className="flex items-center gap-1 text-[14px] font-bold text-[#808080] hover:text-[#FF595F]"
+                >
+                  <Trash2 className="h-5 w-5" /> 삭제
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* AI로 채우기 인라인 프롬프트 */}
+          {fillingItemId === item.id && (
+            <div className="border border-[#9013FE] rounded-[8px] p-4 bg-[#F9F0FF] flex flex-col gap-3">
+              <span className="text-[14px] font-bold text-[#2B2B2B]">추가 요청 사항 (선택)</span>
+              <input
+                type="text"
+                value={fillPrompts[item.id] || ''}
+                onChange={e => setFillPrompts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && handleFillItem(item.id)}
+                placeholder="예: 비판적 사고 위주로, 실생활 연결 포함해줘"
+                className="border border-[#DDDDDD] rounded-[4px] px-3 py-2 text-[14px] w-full bg-white focus:outline-none focus:border-[#9013FE]"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => { setFillingItemId(null); setFillPrompts(prev => { const next = { ...prev }; delete next[item.id]; return next }) }}
+                  className="text-[14px] text-[#808080] px-4 py-2 rounded-full hover:bg-white"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => handleFillItem(item.id)}
+                  disabled={generatingItemId === item.id}
+                  className="bg-[#9013FE] text-white text-[14px] font-bold rounded-full px-5 py-2 disabled:opacity-40 flex items-center gap-2"
+                >
+                  {generatingItemId === item.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                  생성
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ))}
 

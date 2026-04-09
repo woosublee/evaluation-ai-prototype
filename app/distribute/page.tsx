@@ -58,16 +58,15 @@ export default function DistributePage() {
   }, [schoolLevel, curriculum])
 
   const canProceed = useMemo(() => {
-    const hasStandard = directInput ? directInputText.trim().length > 0 : !!selectedStandardCode
     const hasRubric = Array.isArray(rubric) && rubric.filter(item => item.name.trim()).length >= 3
     const hasEvalName = evalName.trim().length > 0 && evalName.length <= 40
+    const hasDesc = guide.description.trim().length > 0 && guide.description.length <= 200
+    const hasCond = guide.conditions.trim().length > 0 && guide.conditions.length <= 350
     if (evalType === 'online') {
-      return hasStandard && hasRubric && hasEvalName &&
-        guide.description.trim().length > 0 && guide.description.length <= 200 &&
-        guide.conditions.trim().length > 0 && guide.conditions.length <= 350
+      return hasRubric && hasEvalName && hasDesc && hasCond
     }
-    return hasStandard && hasRubric && hasEvalName
-  }, [selectedStandardCode, rubric, evalName, evalType, guide])
+    return hasRubric && hasEvalName
+  }, [rubric, evalName, evalType, guide])
 
   return (
     <div className="max-w-[912px] mx-auto py-6 pb-20 flex flex-col gap-6 px-4">
@@ -186,7 +185,7 @@ export default function DistributePage() {
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-5">
-              <span className="text-[14px] font-bold text-[#2B2B2B]">성취 기준 <span className="text-[#FF595F]">*</span></span>
+              <span className="text-[14px] font-bold text-[#2B2B2B]">성취 기준</span>
               <label className="flex items-center gap-2 cursor-pointer">
                 <div
                   onClick={() => {
@@ -218,7 +217,20 @@ export default function DistributePage() {
               <div className={`relative ${!subject ? 'pointer-events-none' : ''}`}>
                 <select
                   value={selectedStandardCode}
-                  onChange={e => setSelectedStandardCode(e.target.value)}
+                  onChange={e => {
+                    const code = e.target.value
+                    setSelectedStandardCode(code)
+                    const found = SAMPLE_ACHIEVEMENT_STANDARDS.find(s => s.code === code)
+                    if (found && found.levels.length > 0) {
+                      setDirectLevels(found.levels.map(l => ({ grade: l.grade, description: '' })))
+                    } else {
+                      setDirectLevels([
+                        { grade: 'A', description: '' },
+                        { grade: 'B', description: '' },
+                        { grade: 'C', description: '' },
+                      ])
+                    }
+                  }}
                   className={`w-full border border-[#DDDDDD] rounded-[4px] px-3 py-3 text-[16px] font-bold appearance-none ${!subject ? 'bg-[#F5F5F5] text-[#AAAAAA] cursor-not-allowed' : 'bg-white text-[#2B2B2B] cursor-pointer'}`}
                 >
                   <option value="">성취기준을 선택하세요</option>
@@ -231,12 +243,12 @@ export default function DistributePage() {
             )}
           </div>
 
-          {/* A/B/C 성취수준 테이블 */}
-          {directInput ? (
+          {/* A/B/C 성취수준 테이블 - 항상 편집 가능 */}
+          {(directInput || selectedStandardCode) && (
             <div className="flex flex-col gap-2">
               <div className="border border-[#DDDDDD] rounded-[4px] overflow-hidden">
                 {directLevels.map((level, i) => (
-                  <div key={level.grade} className={`flex items-stretch ${i < directLevels.length - 1 ? 'border-b border-[#DDDDDD]' : ''}`}>
+                  <div key={i} className={`flex items-stretch ${i < directLevels.length - 1 ? 'border-b border-[#DDDDDD]' : ''}`}>
                     <div className="w-[128px] shrink-0 bg-[#F1F5F9] border-r border-[#DDDDDD] flex items-center justify-center p-2">
                       <input
                         value={level.grade}
@@ -283,25 +295,13 @@ export default function DistributePage() {
                 </button>
               )}
             </div>
-          ) : selectedStandard && (
-            <div className="border border-[#DDDDDD] rounded-[4px] overflow-hidden">
-              {selectedStandard.levels.map((level, i) => (
-                <div key={level.grade} className={`flex items-center ${i < selectedStandard.levels.length - 1 ? 'border-b border-[#DDDDDD]' : ''}`}>
-                  <div className="w-[128px] shrink-0 bg-[#F1F5F9] border-r border-[#DDDDDD] flex items-center justify-center p-3 self-stretch">
-                    <span className="text-[14px] font-bold text-[#2B2B2B] text-center">{level.grade}</span>
-                  </div>
-                  <div className="flex-1 p-3">
-                    <p className="text-[14px] text-[#2B2B2B] leading-[1.43]">{level.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           )}
         </div>
 
         {/* 채점기준 */}
         <RubricSection
           standard={selectedStandard}
+          levelsReady={!!selectedStandard && directLevels.every(l => l.description.trim().length > 0)}
           rubric={rubric}
           setRubric={setRubric}
         />
@@ -310,6 +310,7 @@ export default function DistributePage() {
       {/* 카드 2: 평가명/설명/조건 */}
       <EvaluationSection
         standard={selectedStandard}
+        levelsReady={!!selectedStandard && directLevels.every(l => l.description.trim().length > 0)}
         rubric={rubric}
         guide={guide}
         setGuide={setGuide}
